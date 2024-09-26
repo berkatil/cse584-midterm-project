@@ -65,38 +65,36 @@ def api_based_generation(client, model_name, input_text):
     #responses.append(output)
     #return responses
 
-def local_generation(model_name, data):
-    responses= []
+def local_generation(model_name, input_text):
     model = AutoModelForCausalLM.from_pretrained(
     model_name,
     torch_dtype="auto",
     device_map="auto"
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    for input_text in tqdm(data):
-        messages = [
-            {"role": "system", "content": "Complete the given sentence."},
-            {"role": "user", "content": input_text}
-        ]
-        
-        formatted_input = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-        )
-        tokenized_input = tokenizer([formatted_input], return_tensors="pt").to(model.device)
+    messages = [
+        {"role": "system", "content": "Complete the given sentence."},
+        {"role": "user", "content": input_text}
+    ]
+    
+    formatted_input = tokenizer.apply_chat_template(
+    messages,
+    tokenize=False,
+    add_generation_prompt=True
+    )
+    tokenized_input = tokenizer([formatted_input], return_tensors="pt").to(model.device)
 
-        generated_ids = model.generate(
-        **model_inputs,
-        max_new_tokens=MAX_OUTPUT_TOKENS
-        )
-        generated_ids = [
-            output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-        ]
+    generated_ids = model.generate(
+    **model_inputs,
+    max_new_tokens=MAX_OUTPUT_TOKENS
+    )
+    generated_ids = [
+        output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+    ]
 
-        response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        responses.append(response)
-    return responses
+    response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    return response
+
 
 
 openai_client = OpenAI(
@@ -166,7 +164,13 @@ else:
 already_processed_indices = model_responses["index"].tolist()
 
 if "Qwen" in MODEL_NAME:
-    responses = local_generation(MODEL_NAME, data)
+    for input_text, index in tqdm(zip(texts, indices)):
+        if index in already_processed_indices:
+            continue
+        response = local_generation(MODEL_NAME, input_text)
+        model_responses = model_responses._append({"index": index, "text": input_text, args.model: response}, ignore_index=True)
+        model_responses.to_csv(f"{args.model}.csv", index=False)
+        model_responses = pd.read_csv(f"{args.model}.csv")
 elif "gemini" in MODEL_NAME:
     for input_text, index in tqdm(zip(texts, indices)):
         if index in already_processed_indices:
