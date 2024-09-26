@@ -1,4 +1,5 @@
 import argparse
+import json
 import os 
 
 import anthropic
@@ -10,56 +11,59 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', type=str, default='gpt-4o', choices=["gpt4o", "llama70b", "llama8b", "sonnet", "qwen72b", "qwen32b", "gemini"])
+parser.add_argument('--model', type=str, default='gpt4o', choices=["gpt4o", "llama70b", "llama8b", "sonnet", "qwen72b", "qwen32b", "gemini"])
 parser.add_argument('--data_file', type=str)
 
-MAX_OUTPUT_TOKENS = 20
+MAX_OUTPUT_TOKENS = 30
 TEMPERATURE = 0.7
 args = parser.parse_args()
 
-def gemini_greation(client, data):
-    responses= []
-    for input_text in tqdm(data):
-        prompt = f"Complete the given sentence\n {input_text}"
-        response = gemini.generate_content(prompt)   
-        output = response.text
-        responses.append(output)
-    return responses
+def gemini_greation(client, input_text):
+    #responses= []
+    #for input_text in tqdm(data):
+    prompt = f"Complete the given sentence\n {input_text}"
+    response = gemini.generate_content(prompt)   
+    output = response.text
+    return output
+    #responses.append(output)
+    #return responses
 
-def anthropic_generation(client, model_name, data):
-    responses= []
-    for input_text in tqdm(data):
-        messages = [
-            {"role": "user", "content": [{"text": input_text, "type":"text"} ]}
-        ]
-        completion  = client.messages.create(
-            model=model_name,
-            system="Complete the given sentence.",
-            messages=messages,
-            temperature=TEMPERATURE,
-            max_tokens=MAX_OUTPUT_TOKENS
-        )
-        output = completion.content[0].text.strip()
-        responses.append(output)
-    return responses
+def anthropic_generation(client, model_name, input_text):
+    #responses= []
+    #for input_text in tqdm(data):
+    messages = [
+        {"role": "user", "content": [{"text": input_text, "type":"text"} ]}
+    ]
+    completion  = client.messages.create(
+        model=model_name,
+        system="Complete the given sentence. Do not give any explanation",
+        messages=messages,
+        temperature=TEMPERATURE,
+        max_tokens=MAX_OUTPUT_TOKENS+10
+    )
+    output = completion.content[0].text.strip()
+    return output
+    #    responses.append(output)
+    #return responses
 
 
-def api_based_generation(client, model_name, data):
-    responses= []
-    for input_text in tqdm(data):
-        messages = [
-            {"role": "system", "content": "Complete the given sentence."},
-            {"role": "user", "content": input_text}
-        ]
-        completion  = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            temperature=TEMPERATURE,
-            max_tokens=MAX_OUTPUT_TOKENS
-        )
-        output = completion.choices[0].message.content.strip()
-        responses.append(output)
-    return responses
+def api_based_generation(client, model_name, input_text):
+    #responses= []
+    #for input_text in tqdm(data):
+    messages = [
+        {"role": "system", "content": "Complete the given sentence."},
+        {"role": "user", "content": input_text}
+    ]
+    completion  = client.chat.completions.create(
+        model=model_name,
+        messages=messages,
+        temperature=TEMPERATURE,
+        max_tokens=MAX_OUTPUT_TOKENS
+    )
+    output = completion.choices[0].message.content.strip()
+    return output
+    #responses.append(output)
+    #return responses
 
 def local_generation(model_name, data):
     responses= []
@@ -146,21 +150,59 @@ model_mappings = {
     "gemini": "gemini-1.5-pro"
 }
 MODEL_NAME = model_mappings[args.model]
-data = pd.read_csv(args.data_file)
+with open(args.data_file) as f:
+    data = json.load(f)
+texts = []
+indices = []
+for x_i in data:
+    texts.append(x_i["text"])
+    indices.append(x_i["index"])
+
+if os.path.exists(f"{args.model}.csv"):
+    model_responses = pd.read_csv(f"{args.model}.csv")
+else:
+    model_responses = pd.DataFrame(columns=["index", "text", "response"])
+
+already_processed_indices = model_responses["index"].tolist()
 
 if "Qwen" in MODEL_NAME:
     responses = local_generation(MODEL_NAME, data)
 elif "gemini" in MODEL_NAME:
-    responses = gemini_greation(gemini, data)
+    for input_text, index in tqdm(zip(texts, indices)):
+        if index in already_processed_indices:
+            continue
+        response = gemini_greation(gemini, input_text)
+        model_responses = model_responses._append({"index": index, "text": input_text, args.model: response}, ignore_index=True)
+        model_responses.to_csv(f"{args.model}.csv", index=False)
+        model_responses = pd.read_csv(f"{args.model}.csv")
+    
 elif "llama" in MODEL_NAME:
-    responses = api_based_generation(groq_client, MODEL_NAME, data)
+    for input_text, index in tqdm(zip(texts, indices)):
+        if index in already_processed_indices:
+            continue
+        response = api_based_generation(groq_client, MODEL_NAME, input_text)
+        model_responses = model_responses._append({"index": index, "text": input_text, args.model: response}, ignore_index=True)
+        model_responses.to_csv(f"{args.model}.csv", index=False)
+        model_responses = pd.read_csv(f"{args.model}.csv")
+    
 elif "claude" in MODEL_NAME:
-    responses = anthropic_generation(anthropic_client, MODEL_NAME, data)
+    for input_text, index in tqdm(zip(texts, indices)):
+        if index in already_processed_indices:
+            continue
+        response = anthropic_generation(anthropic_client, MODEL_NAME, input_text)
+        model_responses = model_responses._append({"index": index, "text": input_text, args.model: response}, ignore_index=True)
+        model_responses.to_csv(f"{args.model}.csv", index=False)
+        model_responses = pd.read_csv(f"{args.model}.csv")
+
 elif "gpt" in MODEL_NAME:
-    responses = api_based_generation(openai_client, MODEL_NAME, data)
+    for input_text, index in tqdm(zip(texts, indices)):
+        if index in already_processed_indices:
+            continue
+        response = api_based_generation(openai_client, MODEL_NAME, input_text)
+        model_responses = model_responses._append({"index": index, "text": input_text, args.model: response}, ignore_index=True)
+        model_responses.to_csv(f"{args.model}.csv", index=False)
+        model_responses = pd.read_csv(f"{args.model}.csv")
 else:
     raise ValueError(f"Model not supported {args.model}")
 
-print(responses)
-    
 
