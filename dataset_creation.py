@@ -1,9 +1,12 @@
 import argparse
 import json
 import os 
+import time
 
 import anthropic
 import google.generativeai as genai
+from google.api_core import retry
+from google.generativeai.types import RequestOptions
 from groq import Groq
 from openai import OpenAI
 import pandas as pd
@@ -13,7 +16,7 @@ from tqdm import tqdm
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, default='gpt4o', choices=["gpt4o", "llama70b", "llama8b", "sonnet", "qwen72b", "qwen32b", "gemini"])
 parser.add_argument('--data_file', type=str)
-
+#  dDONE: gp4o, sonnet, qwen32b, llama70b and qwen72b are running.
 MAX_OUTPUT_TOKENS = 30
 TEMPERATURE = 0.7
 args = parser.parse_args()
@@ -21,8 +24,8 @@ args = parser.parse_args()
 def gemini_greation(client, input_text):
     #responses= []
     #for input_text in tqdm(data):
-    prompt = f"Complete the given sentence\n {input_text}"
-    response = gemini.generate_content(prompt)   
+    prompt = f"Complete the given sentence. Do not give any explanation\n {input_text}"
+    response = gemini.generate_content(prompt, request_options=RequestOptions(retry=retry.Retry(initial=10, multiplier=2, maximum=60, timeout=300)))   
     output = response.text
     return output
     #responses.append(output)
@@ -82,7 +85,7 @@ def local_generation(model_name, input_text):
     tokenize=False,
     add_generation_prompt=True
     )
-    tokenized_input = tokenizer([formatted_input], return_tensors="pt").to(model.device)
+    model_inputs = tokenizer([formatted_input], return_tensors="pt").to(model.device)
 
     generated_ids = model.generate(
     **model_inputs,
@@ -179,12 +182,19 @@ elif "gemini" in MODEL_NAME:
         model_responses = model_responses._append({"index": index, "text": input_text, args.model: response}, ignore_index=True)
         model_responses.to_csv(f"{args.model}.csv", index=False)
         model_responses = pd.read_csv(f"{args.model}.csv")
+        
     
 elif "llama" in MODEL_NAME:
     for input_text, index in tqdm(zip(texts, indices)):
         if index in already_processed_indices:
             continue
-        response = api_based_generation(groq_client, MODEL_NAME, input_text)
+        try:
+            response = api_based_generation(groq_client, MODEL_NAME, input_text)
+        except:
+            try:
+                response = api_based_generation(groq_client, MODEL_NAME, input_text)
+            except:
+                response = api_based_generation(groq_client, MODEL_NAME, input_text)
         model_responses = model_responses._append({"index": index, "text": input_text, args.model: response}, ignore_index=True)
         model_responses.to_csv(f"{args.model}.csv", index=False)
         model_responses = pd.read_csv(f"{args.model}.csv")
@@ -192,6 +202,8 @@ elif "llama" in MODEL_NAME:
 elif "claude" in MODEL_NAME:
     for input_text, index in tqdm(zip(texts, indices)):
         if index in already_processed_indices:
+            continue
+        if input_text == "":
             continue
         response = anthropic_generation(anthropic_client, MODEL_NAME, input_text)
         model_responses = model_responses._append({"index": index, "text": input_text, args.model: response}, ignore_index=True)
