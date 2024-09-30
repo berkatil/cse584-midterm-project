@@ -56,7 +56,7 @@ else:
 optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
 best_val_loss = float("inf")
-for epoch in range(10):
+for epoch in range(1):
     model.train()
     for i, (xi, xj, labels) in enumerate(train_loader):
         optimizer.zero_grad()
@@ -78,3 +78,13 @@ for epoch in range(10):
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(model.state_dict(), "best_model.pth")
+
+model.load_state_dict(torch.load("best_model.pth", weights_only=True))
+model.eval()
+with torch.no_grad():
+    predictions = []
+    ground_truths = []
+    for i, (xi, xj, labels) in enumerate(test_loader):
+        output = model(xi, xj)
+        predictions.extend(output.detach().cpu().numpy().argmax(axis=1).tolist()) 
+        ground_truths.extend(labels.detach().cpu().numpy().tolist())
