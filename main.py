@@ -1,9 +1,11 @@
 import argparse
 import random
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import precision_recall_fscore_support, accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 import torch
 from torch.utils.data import DataLoader
 
@@ -28,8 +30,8 @@ set_all_seeds(42)
 data = pd.read_csv(args.data_file)
 data["label"] = 0
 
-train, val_test = train_test_split(data, test_size=0.3, random_state=42)
-val, test = train_test_split(val_test, test_size=0.33, random_state=42)
+train, val_test = train_test_split(data, test_size=0.3, random_state=42, shuffle=True)
+val, test = train_test_split(val_test, test_size=0.33, random_state=42, shuffle=True)
 
 train_set = ModelDetectionDataset(train, args.architecture_type == "single")
 val_set = ModelDetectionDataset(val, args.architecture_type == "single")
@@ -88,3 +90,22 @@ with torch.no_grad():
         output = model(xi, xj)
         predictions.extend(output.detach().cpu().numpy().argmax(axis=1).tolist()) 
         ground_truths.extend(labels.detach().cpu().numpy().tolist())
+
+prec, rec, f1, _ = precision_recall_fscore_support(ground_truths, predictions, average="macro")
+print("Macro Average Scores")
+print(f"Precision: {prec}, Recall: {rec}, F1: {f1}")
+prec, rec, f1, _ = precision_recall_fscore_support(ground_truths, predictions, average="micro")
+print("Micro Average Scores")
+print(f"Precision: {prec}, Recall: {rec}, F1: {f1}")
+prec, rec, f1, _ = precision_recall_fscore_support(ground_truths, predictions, average=None)
+print("No Average Scores")
+print(f"Precision: {prec}, Recall: {rec}, F1: {f1}")
+accuracy = accuracy_score(ground_truths, predictions)
+print(f"Accuracy: {accuracy}")
+matrix = confusion_matrix(ground_truths, predictions)
+print("Accuracy for each class")
+print(matrix.diagonal()/matrix.sum(axis=1))
+disp = ConfusionMatrixDisplay(confusion_matrix=matrix)
+print("Confusion Matrix")
+disp.plot()
+plt.show()
