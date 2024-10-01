@@ -1,5 +1,5 @@
+import torch
 from torch.utils.data import Dataset
-
 
 class ModelDetectionDataset(Dataset):
     def __init__(self, data, concat=False):
@@ -7,15 +7,18 @@ class ModelDetectionDataset(Dataset):
         self.concat = concat
 
     def __len__(self):
-        return 5#len(self.data)
+        return len(self.data)
+        # returning comprehension by accessing data
     
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
-        xi = row["xi"]
-        xj = row["xj"]
+        xi = str(row["xi"])  # Ensure xi is a string
+        xj = str(row["xj"])  # Ensure xj is a string
+        label = torch.tensor(row["label"], dtype=torch.long)  # Ensure label is a tensor
+
         if xi in xj:
             xj = xj.replace(xi, "")
         if self.concat:
-            return xi + xj, "", row["label"]
-       
-        return xi, xj, row["label"]
+            return xi + xj, "", label
+
+        return xi, xj, label
