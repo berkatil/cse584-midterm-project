@@ -16,8 +16,8 @@ class DualEncoder(torch.nn.Module):
             hidden_size = self.model_i.get_sentence_embedding_dimension()
             self.tokenizer = None
         elif sbert_or_luar == "luar":
-            self.model_i = AutoModel.from_pretrained("rrivera1849/LUAR-CRUD", trust_remote_code=True).to(device)
-            self.model_j = AutoModel.from_pretrained("rrivera1849/LUAR-CRUD", trust_remote_code=True).to(device)
+            self.model_i = AutoModel.from_pretrained("rrivera1849/LUAR-MUD", trust_remote_code=True).to(device)
+            self.model_j = AutoModel.from_pretrained("rrivera1849/LUAR-MUD", trust_remote_code=True).to(device)
             hidden_size = self.model_i.config.hidden_size
             self.tokenizer = AutoTokenizer.from_pretrained("rrivera1849/LUAR-CRUD")
         else:
