@@ -8,4 +8,4 @@ We extracted some portions of the dataset from 6 dataset resources and halved th
 ## Training Classifiers
 Two classifiers (SBert and Luar) were selected for our experiment and were trained with our generated dataset (`combined_data.csv`). By testing in different environments and parameter settings, we found our best scenarios for each classifiers to be trianed. Training results for each model were repersented in the confusion matrix image in corresponding directories. The best model files are stored in the [Google Drive](https://drive.google.com/drive/folders/11MlZ6gF0aj2P9RJ6787FZF5eV6k9cPjN?usp=drive_link) due to the size.
 
-You need to run `python main.py --dataset_file <path to combined file> --architecture_type <model architecture either single or dual> --encoder_type <encoder model>`
+You need to run `python main.py --dataset_file <path to combined data file> --architecture_type <model architecture either single or dual> --encoder_type <encoder model>`
